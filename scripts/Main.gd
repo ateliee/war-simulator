@@ -69,10 +69,9 @@ var city_names = [
 @onready var time_label = Label.new()
 @onready var restart_btn = Button.new()
 
-
 func _ready():
 	add_child(ui_container)
-	var custom_font = preload("res://assets/fonts/NotoSansJP-Bold.otf")
+
 	
 	ui_container.add_child(faction_list_label)
 	faction_list_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -88,7 +87,7 @@ func _ready():
 	faction_list_label.add_theme_color_override("font_shadow_color", Color.BLACK)
 	faction_list_label.add_theme_constant_override("outline_size", 6)
 	faction_list_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	
+
 	ui_container.add_child(time_label)
 	time_label.position = Vector2(0, 20)
 	time_label.size = Vector2(1920, 100)
@@ -98,7 +97,7 @@ func _ready():
 	time_label.add_theme_color_override("font_color", Color.WHITE)
 	time_label.add_theme_constant_override("outline_size", 8)
 	time_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	
+
 	ui_container.add_child(restart_btn)
 	restart_btn.text = "リスタート"
 	restart_btn.position = Vector2(1920 - 200, 20)
