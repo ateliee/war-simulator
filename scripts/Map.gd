@@ -15,8 +15,8 @@ func setup(_cities: Array, _factions: Array, _noise: FastNoiseLite):
 	
 	noise_tex = NoiseTexture2D.new()
 	noise_tex.noise = _noise
-	noise_tex.width = 1152
-	noise_tex.height = 648
+	noise_tex.width = 1920
+	noise_tex.height = 1080
 	noise_tex.seamless = false
 	
 	var mat = ShaderMaterial.new()
@@ -31,9 +31,17 @@ func setup(_cities: Array, _factions: Array, _noise: FastNoiseLite):
 		
 	mat.set_shader_parameter("num_cities", cities.size())
 	mat.set_shader_parameter("city_positions", pos_array)
-	mat.set_shader_parameter("screen_size", Vector2(1152, 648))
+	mat.set_shader_parameter("screen_size", Vector2(1920, 1080))
 	
 	_update_shader_colors()
+
+func update_faction_powers(current_factions: Array):
+	if background.material == null:
+		return
+	var powers_array = PackedFloat32Array()
+	for f in current_factions:
+		powers_array.append(max(f.total_power, 1.0))
+	background.material.set_shader_parameter("faction_powers", powers_array)
 
 func _process(_delta):
 	_update_shader_colors()
@@ -43,9 +51,14 @@ func _update_shader_colors():
 	if background.material == null:
 		return
 	var color_array = PackedColorArray()
+	var city_factions_array = PackedInt32Array()
+	
 	for c in cities:
 		color_array.append(c.faction.color)
+		city_factions_array.append(factions.find(c.faction))
+		
 	background.material.set_shader_parameter("city_colors", color_array)
+	background.material.set_shader_parameter("city_factions", city_factions_array)
 
 func _draw():
 	for c in cities:
