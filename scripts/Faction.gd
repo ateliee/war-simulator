@@ -1,13 +1,18 @@
 extends RefCounted
 
-var name: String
-var color: Color
-var total_power: float
+var name: String = ""
+var color: Color = Color.WHITE
+var cities: Array = []
 
-func _init(_name: String, _color: Color, _power: float):
-	self.name = _name
-	self.color = _color
-	self.total_power = _power
+func _init(_name: String, _color: Color):
+	name = _name
+	color = _color
+
+func get_total_power() -> float:
+	var total = 0.0
+	for c in cities:
+		total += c.power
+	return total
 
 func is_alive() -> bool:
-	return total_power > 0
+	return cities.size() > 0

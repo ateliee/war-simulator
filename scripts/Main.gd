@@ -11,9 +11,12 @@ var cities: Array = []
 var noise: FastNoiseLite
 var game_time: float = 0.0
 
+var city_names = ["アイゼン", "ルカ", "バルド", "セルフィ", "アリア", "グラン", "オルザ", "ドラン", "メル", "リム", "ゼノ", "カリン", "ノア", "シオン", "レナ", "マリス", "ロイド", "クロウ", "レイ", "ユウ", "カイ", "ルイン", "アーク", "セシル", "ディン", "エド", "フレア", "ガイ", "ヒロ", "イオ", "ジン", "ケン", "ラン", "ミカ", "ナツ", "オト", "ピア", "クイン", "リタ", "サヤ", "タマ", "ウミ", "ヴィオ", "ワカ", "シト", "ヨミ", "ザラ"]
+
 @onready var ui_container = CanvasLayer.new()
 @onready var faction_list_label = Label.new()
 @onready var time_label = Label.new()
+@onready var restart_btn = Button.new() # リスタートボタン
 
 func _ready():
 	add_child(ui_container)
@@ -31,6 +34,12 @@ func _ready():
 	time_label.add_theme_color_override("font_color", Color.WHITE)
 	time_label.add_theme_color_override("font_shadow_color", Color.BLACK)
 	
+	ui_container.add_child(restart_btn)
+	restart_btn.text = "リスタート"
+	restart_btn.position = Vector2(1920 - 200, 20)
+	restart_btn.add_theme_font_size_override("font_size", 32)
+	restart_btn.pressed.connect(_on_restart_pressed)
+	
 	_init_factions()
 	_init_cities()
 	
@@ -38,12 +47,15 @@ func _ready():
 	add_child(map_instance)
 	map_instance.setup(cities, factions, noise)
 
+func _on_restart_pressed():
+	get_tree().change_scene_to_file("res://scenes/Title.tscn")
+
 func _init_factions():
-	var red = FactionRef.new("赤の帝国", Color(0.8, 0.2, 0.2), randf_range(80000, 100000))
-	var blue = FactionRef.new("青の共和国", Color(0.2, 0.4, 0.8), randf_range(80000, 100000))
-	var green = FactionRef.new("緑の連邦", Color(0.2, 0.8, 0.3), randf_range(80000, 100000))
-	var yellow = FactionRef.new("黄の連合", Color(0.8, 0.8, 0.2), randf_range(80000, 100000))
-	var purple = FactionRef.new("紫の王国", Color(0.6, 0.2, 0.8), randf_range(80000, 100000))
+	var red = FactionRef.new("赤の帝国", Color(0.8, 0.2, 0.2))
+	var blue = FactionRef.new("青の共和国", Color(0.2, 0.4, 0.8))
+	var green = FactionRef.new("緑の連邦", Color(0.2, 0.8, 0.3))
+	var yellow = FactionRef.new("黄の連合", Color(0.8, 0.8, 0.2))
+	var purple = FactionRef.new("紫の王国", Color(0.6, 0.2, 0.8))
 	
 	factions = [red, blue, green, yellow, purple]
 
@@ -51,11 +63,10 @@ func _init_cities():
 	noise = FastNoiseLite.new()
 	noise.seed = randi()
 	noise.noise_type = FastNoiseLite.TYPE_PERLIN
-	# 周波数を調整し、複数大陸や島が生成されやすくする
 	noise.frequency = 0.003
 	noise.fractal_octaves = 4
 	
-	var num_cities = 60 # さらに都市を少し増やして密度を確保
+	var num_cities = 60
 	var screen_size = Vector2(1920, 1080)
 	
 	var spawned = 0
@@ -64,7 +75,6 @@ func _init_cities():
 		timeout += 1
 		var pos = Vector2(randf_range(50, screen_size.x - 50), randf_range(50, screen_size.y - 50))
 		
-		# 滑らかなビネット（減衰）マスクを適用し複数大陸化
 		var uv = pos / screen_size
 		var dist_uv = uv.distance_to(Vector2(0.5, 0.5))
 		var falloff = 1.0 - smoothstep(0.35, 0.5, dist_uv)
@@ -72,11 +82,27 @@ func _init_cities():
 		var n = noise.get_noise_2d(pos.x, pos.y) * 0.5 + 0.5
 		n *= falloff
 		
-		if n > 0.4: # 陸地判定
-			var city = CityRef.new("都市" + str(spawned+1), pos)
-			city.faction = factions[randi() % factions.size()]
+		if n > 0.4:
+			var city_name = "都市"
+			if city_names.size() > 0:
+				var idx = randi() % city_names.size()
+				city_name = city_names[idx]
+				city_names.remove_at(idx)
+				
+			var city = CityRef.new(city_name, pos)
+			var fac = factions[randi() % factions.size()]
+			city.faction = fac
+			fac.cities.append(city)
 			cities.append(city)
 			spawned += 1
+
+	for f in factions:
+		if f.cities.size() > 0:
+			var cap = f.cities[0]
+			cap.is_capital = true
+			cap.power = 60000.0
+			cap.max_power = 60000.0
+			cap.name = "王都" + cap.name
 
 func _process(delta):
 	game_time += delta
@@ -101,71 +127,67 @@ func _check_win_condition():
 		get_tree().change_scene_to_file("res://scenes/Result.tscn")
 
 func _update_simulation(delta):
-	# 回復
-	for faction in factions:
-		if faction.is_alive():
-			faction.total_power += 400 * delta
+	for c in cities:
+		var recovery = 200.0 * delta
+		if c.is_capital:
+			recovery = 600.0 * delta 
+		c.power = min(c.power + recovery, c.max_power)
 	
 	var adjacency = map_instance.get_adjacency_list()
 	var damage_to_deal = {}
-	for f in factions:
-		damage_to_deal[f] = 0.0
+	for c in cities:
+		damage_to_deal[c] = 0.0
 		
 	for pair in adjacency:
 		var c1 = pair[0]
 		var c2 = pair[1]
 		
-		if c1.faction != c2.faction and c1.faction.is_alive() and c2.faction.is_alive():
-			# ダメージ量を大幅に低下させ、侵攻を遅らせる
-			damage_to_deal[c1.faction] += randf_range(500, 700) * delta
-			damage_to_deal[c2.faction] += randf_range(500, 700) * delta
+		if c1.faction != c2.faction:
+			damage_to_deal[c1] += randf_range(300, 500) * delta
+			damage_to_deal[c2] += randf_range(300, 500) * delta
 			
-	for f in factions:
-		if f.is_alive():
-			f.total_power -= damage_to_deal[f]
-			if f.total_power <= 0:
-				_annex_faction(f)
+	for c in cities:
+		c.power -= damage_to_deal[c]
+		if c.power <= 0:
+			_city_annexed(c)
 				
-	map_instance.update_faction_powers(factions)
+	map_instance.update_city_powers(cities)
 
-func _annex_faction(defeated_faction):
-	defeated_faction.total_power = 0
-	
+func _city_annexed(defeated_city):
 	var adjacency = map_instance.get_adjacency_list()
-	var neighbor_factions = []
-	
+	var enemy_neighbors = []
 	for pair in adjacency:
-		var c1 = pair[0]
-		var c2 = pair[1]
-		if c1.faction == defeated_faction and c2.faction != defeated_faction and c2.faction.is_alive():
-			if not neighbor_factions.has(c2.faction):
-				neighbor_factions.append(c2.faction)
-		elif c2.faction == defeated_faction and c1.faction != defeated_faction and c1.faction.is_alive():
-			if not neighbor_factions.has(c1.faction):
-				neighbor_factions.append(c1.faction)
-	
-	var winner = null
-	if neighbor_factions.size() > 0:
-		winner = neighbor_factions[randi() % neighbor_factions.size()]
-	else:
-		var alive = factions.filter(func(f): return f.is_alive())
-		if alive.size() > 0:
-			winner = alive[randi() % alive.size()]
+		if pair[0] == defeated_city and pair[1].faction != defeated_city.faction:
+			enemy_neighbors.append(pair[1].faction)
+		elif pair[1] == defeated_city and pair[0].faction != defeated_city.faction:
+			enemy_neighbors.append(pair[0].faction)
 			
+	var winner = null
+	if enemy_neighbors.size() > 0:
+		winner = enemy_neighbors[randi() % enemy_neighbors.size()]
+	
 	if winner != null:
-		for city in cities:
-			if city.faction == defeated_faction:
-				city.faction = winner
+		var old_faction = defeated_city.faction
+		old_faction.cities.erase(defeated_city)
+		
+		defeated_city.faction = winner
+		winner.cities.append(defeated_city)
+		
+		if defeated_city.is_capital:
+			defeated_city.is_capital = false
+			defeated_city.name = defeated_city.name.replace("王都", "旧都")
+			defeated_city.max_power = 30000.0
+		
+		defeated_city.power = 5000.0 
 
 func _update_ui():
-	# 経過年数（1秒 = 1年）
 	var current_year = 2024 + int(game_time)
 	time_label.text = "経過年数: %d年" % current_year
 
 	var text = "各国の総兵力:\n"
 	for f in factions:
 		if f.is_alive():
-			text += "%s: %d\n" % [f.name, int(f.total_power)]
+			text += "%s: %d\n" % [f.name, int(f.get_total_power())]
 		else:
 			text += "%s: 滅亡\n" % f.name
 	faction_list_label.text = text

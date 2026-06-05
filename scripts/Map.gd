@@ -8,10 +8,14 @@ const FactionRef = preload("res://scripts/Faction.gd")
 var cities: Array = []
 var factions: Array = []
 var noise_tex: NoiseTexture2D
+var sys_font: SystemFont
 
 func setup(_cities: Array, _factions: Array, _noise: FastNoiseLite):
 	cities = _cities
 	factions = _factions
+	
+	sys_font = SystemFont.new()
+	sys_font.font_names = PackedStringArray(["Hiragino Sans", "Yu Gothic", "Meiryo", "sans-serif"])
 	
 	noise_tex = NoiseTexture2D.new()
 	noise_tex.noise = _noise
@@ -33,37 +37,43 @@ func setup(_cities: Array, _factions: Array, _noise: FastNoiseLite):
 	mat.set_shader_parameter("city_positions", pos_array)
 	mat.set_shader_parameter("screen_size", Vector2(1920, 1080))
 	
-	_update_shader_colors()
+	update_city_powers(cities)
 
-func update_faction_powers(current_factions: Array):
+func update_city_powers(current_cities: Array):
 	if background.material == null:
 		return
 	var powers_array = PackedFloat32Array()
-	for f in current_factions:
-		powers_array.append(max(f.total_power, 1.0))
-	background.material.set_shader_parameter("faction_powers", powers_array)
+	var color_array = PackedColorArray()
+	for c in current_cities:
+		powers_array.append(max(c.power, 1.0))
+		color_array.append(c.faction.color)
+	
+	background.material.set_shader_parameter("city_powers", powers_array)
+	background.material.set_shader_parameter("city_colors", color_array)
 
 func _process(_delta):
-	_update_shader_colors()
 	queue_redraw()
 
-func _update_shader_colors():
-	if background.material == null:
-		return
-	var color_array = PackedColorArray()
-	var city_factions_array = PackedInt32Array()
-	
-	for c in cities:
-		color_array.append(c.faction.color)
-		city_factions_array.append(factions.find(c.faction))
-		
-	background.material.set_shader_parameter("city_colors", color_array)
-	background.material.set_shader_parameter("city_factions", city_factions_array)
-
 func _draw():
+	var font_size = 14
 	for c in cities:
 		draw_circle(c.position, 6.0, Color.BLACK)
-		draw_circle(c.position, 4.0, c.faction.color)
+		
+		if c.is_capital:
+			draw_circle(c.position, 5.0, Color.YELLOW)
+			draw_circle(c.position, 3.0, c.faction.color)
+		else:
+			draw_circle(c.position, 4.0, c.faction.color)
+		
+		var display_name = c.name
+		if c.is_capital:
+			display_name = "★" + c.name
+			
+		var string_size = sys_font.get_string_size(display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+		var text_pos = c.position + Vector2(-string_size.x / 2.0, -10)
+		
+		draw_string_outline(sys_font, text_pos, display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, 2, Color.BLACK)
+		draw_string(sys_font, text_pos, display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, Color.WHITE)
 
 func get_adjacency_list() -> Array:
 	var points = PackedVector2Array()
@@ -78,16 +88,31 @@ func get_adjacency_list() -> Array:
 		var idx1 = delaunay[i+1]
 		var idx2 = delaunay[i+2]
 		
-		_add_edge(adjacency, cities[idx0], cities[idx1])
-		_add_edge(adjacency, cities[idx1], cities[idx2])
-		_add_edge(adjacency, cities[idx2], cities[idx0])
+		_add_edge_if_gabriel(adjacency, cities[idx0], cities[idx1])
+		_add_edge_if_gabriel(adjacency, cities[idx1], cities[idx2])
+		_add_edge_if_gabriel(adjacency, cities[idx2], cities[idx0])
 		
 	return adjacency
 
-func _add_edge(adj_list: Array, c1, c2):
-	var pair1 = [c1, c2]
-	var pair2 = [c2, c1]
+func _add_edge_if_gabriel(adj_list: Array, c1, c2):
+	# ガブリエルグラフ判定：2点間の円内に他の都市が含まれていないかチェック
+	# これにより、「国境を接していない遠くの都市から突然侵攻される」という不具合を防止する
+	var mid = (c1.position + c2.position) / 2.0
+	var radius_sq = c1.position.distance_squared_to(mid)
 	
+	var is_valid = true
+	for c3 in cities:
+		if c3 == c1 or c3 == c2:
+			continue
+		# もし他の都市が円の内側にある場合、このエッジは無効（直接国境を接していない）
+		if c3.position.distance_squared_to(mid) < radius_sq:
+			is_valid = false
+			break
+			
+	if not is_valid:
+		return
+		
+	var pair1 = [c1, c2]
 	var found = false
 	for p in adj_list:
 		if (p[0] == c1 and p[1] == c2) or (p[0] == c2 and p[1] == c1):
