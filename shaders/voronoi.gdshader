@@ -28,11 +28,19 @@ void fragment() {
 		
 		float min_dist2 = 99999999.0;
 		
+		// ドメインワーピング1（大きくうねる空間の歪み）
 		vec2 warp = vec2(
 			texture(noise_tex, UV).r - 0.5,
 			texture(noise_tex, vec2(UV.y, 1.0 - UV.x)).r - 0.5
 		);
-		vec2 warped_pos = pos + warp * 200.0;
+		// ドメインワーピング2（反転した座標からのノイズで鋭い凹凸を作る）
+		vec2 warp2 = vec2(
+			texture(noise_tex, vec2(1.0 - UV.x, 1.0 - UV.y)).r - 0.5,
+			texture(noise_tex, vec2(1.0 - UV.y, UV.x)).r - 0.5
+		);
+		
+		// 合成して大きな歪みと鋭い歪みを両立させる
+		vec2 warped_pos = pos + warp * 300.0 + warp2 * 150.0;
 		
 		for (int i = 0; i < num_cities; i++) {
 			float power = city_powers[i];
@@ -51,9 +59,7 @@ void fragment() {
 		
 		vec3 color = city_colors[closest_i].rgb;
 		
-		// 黒い巨大な影が出ないよう、2点間の比率を用いた自然な境界線を描画
 		float ratio = min_dist / max(min_dist2, 0.0001);
-		// 国境付近（ratioが1.0に近い場所）を少し暗くして自然な線にする
 		color *= mix(1.0, 0.4, smoothstep(0.97, 1.0, ratio));
 		
 		color *= mix(0.7, 1.0, (n - land_threshold) / (1.0 - land_threshold));

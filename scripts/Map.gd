@@ -7,6 +7,7 @@ const FactionRef = preload("res://scripts/Faction.gd")
 
 var cities: Array = []
 var factions: Array = []
+var troops: Array = []
 var noise_tex: NoiseTexture2D
 var sys_font: SystemFont
 
@@ -51,6 +52,9 @@ func update_city_powers(current_cities: Array):
 	background.material.set_shader_parameter("city_powers", powers_array)
 	background.material.set_shader_parameter("city_colors", color_array)
 
+func update_active_troops(_troops: Array):
+	troops = _troops
+
 func _process(_delta):
 	queue_redraw()
 
@@ -75,6 +79,34 @@ func _draw():
 		draw_string_outline(sys_font, text_pos, display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, 2, Color.BLACK)
 		draw_string(sys_font, text_pos, display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, Color.WHITE)
 
+	# 部隊（矢印）の描画
+	for t in troops:
+		_draw_arrow(t.position, t.target.position, t.faction.color)
+
+func _draw_arrow(pos: Vector2, target: Vector2, color: Color):
+	var dir = (target - pos).normalized()
+	if dir.length() < 0.1:
+		return
+		
+	var arrow_len = 20.0
+	var tip = pos + dir * (arrow_len * 0.5)
+	var base = pos - dir * (arrow_len * 0.5)
+	
+	# 矢印の軸（黒フチと内側）
+	draw_line(base, tip, Color.BLACK, 6.0)
+	draw_line(base, tip, color, 4.0)
+	
+	# 矢印の頭（三角形）
+	var right = dir.rotated(PI * 0.8) * 12.0
+	var left = dir.rotated(-PI * 0.8) * 12.0
+	
+	var pts = PackedVector2Array([tip + dir * 6.0, tip + right, tip + left])
+	draw_polygon(pts, PackedColorArray([color, color, color]))
+	
+	# 矢印の頭のアウトライン
+	var pts_outline = PackedVector2Array([tip + dir * 6.0, tip + right, tip + left, tip + dir * 6.0])
+	draw_polyline(pts_outline, Color.BLACK, 2.0)
+
 func get_adjacency_list() -> Array:
 	var points = PackedVector2Array()
 	for c in cities:
@@ -95,8 +127,6 @@ func get_adjacency_list() -> Array:
 	return adjacency
 
 func _add_edge_if_gabriel(adj_list: Array, c1, c2):
-	# ガブリエルグラフ判定：2点間の円内に他の都市が含まれていないかチェック
-	# これにより、「国境を接していない遠くの都市から突然侵攻される」という不具合を防止する
 	var mid = (c1.position + c2.position) / 2.0
 	var radius_sq = c1.position.distance_squared_to(mid)
 	
@@ -104,7 +134,6 @@ func _add_edge_if_gabriel(adj_list: Array, c1, c2):
 	for c3 in cities:
 		if c3 == c1 or c3 == c2:
 			continue
-		# もし他の都市が円の内側にある場合、このエッジは無効（直接国境を接していない）
 		if c3.position.distance_squared_to(mid) < radius_sq:
 			is_valid = false
 			break

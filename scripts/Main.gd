@@ -2,21 +2,24 @@ extends Node2D
 
 const FactionRef = preload("res://scripts/Faction.gd")
 const CityRef = preload("res://scripts/City.gd")
+const TroopRef = preload("res://scripts/Troop.gd")
 
 var map_scene = preload("res://scenes/Map.tscn")
 var map_instance: Node2D
 
 var factions: Array = []
 var cities: Array = []
+var active_troops: Array = []
 var noise: FastNoiseLite
 var game_time: float = 0.0
+var troop_spawn_timer: float = 0.0
 
 var city_names = ["アイゼン", "ルカ", "バルド", "セルフィ", "アリア", "グラン", "オルザ", "ドラン", "メル", "リム", "ゼノ", "カリン", "ノア", "シオン", "レナ", "マリス", "ロイド", "クロウ", "レイ", "ユウ", "カイ", "ルイン", "アーク", "セシル", "ディン", "エド", "フレア", "ガイ", "ヒロ", "イオ", "ジン", "ケン", "ラン", "ミカ", "ナツ", "オト", "ピア", "クイン", "リタ", "サヤ", "タマ", "ウミ", "ヴィオ", "ワカ", "シト", "ヨミ", "ザラ"]
 
 @onready var ui_container = CanvasLayer.new()
 @onready var faction_list_label = Label.new()
 @onready var time_label = Label.new()
-@onready var restart_btn = Button.new() # リスタートボタン
+@onready var restart_btn = Button.new() 
 
 func _ready():
 	add_child(ui_container)
@@ -127,58 +130,73 @@ func _check_win_condition():
 		get_tree().change_scene_to_file("res://scenes/Result.tscn")
 
 func _update_simulation(delta):
+	# 都市の回復
 	for c in cities:
 		var recovery = 200.0 * delta
 		if c.is_capital:
 			recovery = 600.0 * delta 
 		c.power = min(c.power + recovery, c.max_power)
 	
-	var adjacency = map_instance.get_adjacency_list()
-	var damage_to_deal = {}
-	for c in cities:
-		damage_to_deal[c] = 0.0
-		
-	for pair in adjacency:
-		var c1 = pair[0]
-		var c2 = pair[1]
-		
-		if c1.faction != c2.faction:
-			damage_to_deal[c1] += randf_range(300, 500) * delta
-			damage_to_deal[c2] += randf_range(300, 500) * delta
+	# 部隊の生成（数秒おきに出撃）
+	troop_spawn_timer -= delta
+	if troop_spawn_timer <= 0:
+		troop_spawn_timer = 2.0
+		var adjacency = map_instance.get_adjacency_list()
+		for pair in adjacency:
+			var c1 = pair[0]
+			var c2 = pair[1]
 			
-	for c in cities:
-		c.power -= damage_to_deal[c]
-		if c.power <= 0:
-			_city_annexed(c)
+			if c1.faction != c2.faction:
+				# c1からc2への進軍
+				if c1.power > 5000:
+					var send_power = c1.power * 0.15 # 兵力の15%を出撃
+					c1.power -= send_power
+					active_troops.append(TroopRef.new(c1.faction, c1.position, c2, send_power))
+				
+				# c2からc1への進軍
+				if c2.power > 5000:
+					var send_power = c2.power * 0.15
+					c2.power -= send_power
+					active_troops.append(TroopRef.new(c2.faction, c2.position, c1, send_power))
+					
+	# 部隊の移動と戦闘処理
+	var i = active_troops.size() - 1
+	while i >= 0:
+		var t = active_troops[i]
+		var dir = (t.target.position - t.position).normalized()
+		t.position += dir * t.speed * delta
+		
+		# 到達判定
+		if t.position.distance_to(t.target.position) < 10.0:
+			if t.target.faction == t.faction:
+				# 移動中に味方領土になっていた場合は増援として回復
+				t.target.power = min(t.target.power + t.power, t.target.max_power)
+			else:
+				# 敵都市へのダメージ処理
+				t.target.power -= t.power
+				if t.target.power <= 0:
+					# 部隊の所属国が都市を占領する
+					_city_annexed(t.target, t.faction)
+			
+			active_troops.remove_at(i)
+		i -= 1
 				
 	map_instance.update_city_powers(cities)
+	map_instance.update_active_troops(active_troops)
 
-func _city_annexed(defeated_city):
-	var adjacency = map_instance.get_adjacency_list()
-	var enemy_neighbors = []
-	for pair in adjacency:
-		if pair[0] == defeated_city and pair[1].faction != defeated_city.faction:
-			enemy_neighbors.append(pair[1].faction)
-		elif pair[1] == defeated_city and pair[0].faction != defeated_city.faction:
-			enemy_neighbors.append(pair[0].faction)
-			
-	var winner = null
-	if enemy_neighbors.size() > 0:
-		winner = enemy_neighbors[randi() % enemy_neighbors.size()]
+func _city_annexed(defeated_city, winner_faction):
+	var old_faction = defeated_city.faction
+	old_faction.cities.erase(defeated_city)
 	
-	if winner != null:
-		var old_faction = defeated_city.faction
-		old_faction.cities.erase(defeated_city)
-		
-		defeated_city.faction = winner
-		winner.cities.append(defeated_city)
-		
-		if defeated_city.is_capital:
-			defeated_city.is_capital = false
-			defeated_city.name = defeated_city.name.replace("王都", "旧都")
-			defeated_city.max_power = 30000.0
-		
-		defeated_city.power = 5000.0 
+	defeated_city.faction = winner_faction
+	winner_faction.cities.append(defeated_city)
+	
+	if defeated_city.is_capital:
+		defeated_city.is_capital = false
+		defeated_city.name = defeated_city.name.replace("王都", "旧都")
+		defeated_city.max_power = 30000.0
+	
+	defeated_city.power = 5000.0 
 
 func _update_ui():
 	var current_year = 2024 + int(game_time)
