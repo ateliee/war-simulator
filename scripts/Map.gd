@@ -7,7 +7,7 @@ var cities: Array = []
 var factions: Array = []
 var troops: Array = []
 var noise_tex: NoiseTexture2D
-var sys_font: SystemFont
+@onready var custom_font: FontFile
 
 @onready var background = $Background
 
@@ -16,8 +16,7 @@ func setup(_cities: Array, _factions: Array, _noise: FastNoiseLite):
 	cities = _cities
 	factions = _factions
 
-	sys_font = SystemFont.new()
-	sys_font.font_names = PackedStringArray(["Hiragino Sans", "Yu Gothic", "Meiryo", "sans-serif"])
+	custom_font = preload("res://assets/fonts/NotoSansJP-Bold.otf")
 
 	noise_tex = NoiseTexture2D.new()
 	noise_tex.noise = _noise
@@ -78,13 +77,11 @@ func _draw():
 		if c.is_capital:
 			display_name = "★" + c.name
 
-		var string_size = sys_font.get_string_size(
-			display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size
-		)
+		var string_size = custom_font.get_string_size(display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
 		var text_pos = c.position + Vector2(-string_size.x / 2.0, -10)
 
 		draw_string_outline(
-			sys_font,
+			custom_font,
 			text_pos,
 			display_name,
 			HORIZONTAL_ALIGNMENT_CENTER,
@@ -94,7 +91,7 @@ func _draw():
 			Color.BLACK
 		)
 		draw_string(
-			sys_font,
+			custom_font,
 			text_pos,
 			display_name,
 			HORIZONTAL_ALIGNMENT_CENTER,

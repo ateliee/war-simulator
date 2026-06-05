@@ -72,34 +72,37 @@ var city_names = [
 
 func _ready():
 	add_child(ui_container)
+	var custom_font = preload("res://assets/fonts/NotoSansJP-Bold.otf")
+	
 	ui_container.add_child(faction_list_label)
-	faction_list_label.position = Vector2(1920 - 450, 1080 - 280)
-	faction_list_label.size = Vector2(400, 250)
+	faction_list_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	faction_list_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	faction_list_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	faction_list_label.offset_right = -40
+	faction_list_label.offset_bottom = -40
 	faction_list_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	faction_list_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	faction_list_label.add_theme_font_override("font", custom_font)
 	faction_list_label.add_theme_font_size_override("font_size", 32)
 	faction_list_label.add_theme_color_override("font_color", Color.WHITE)
 	faction_list_label.add_theme_color_override("font_shadow_color", Color.BLACK)
 	faction_list_label.add_theme_constant_override("outline_size", 6)
 	faction_list_label.add_theme_color_override("font_outline_color", Color.BLACK)
-
+	
 	ui_container.add_child(time_label)
 	time_label.position = Vector2(0, 20)
 	time_label.size = Vector2(1920, 100)
 	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-
-	var bold_font = SystemFont.new()
-	bold_font.font_names = PackedStringArray(["Hiragino Sans", "Yu Gothic", "Meiryo", "sans-serif"])
-	bold_font.font_weight = 700  # 太字
-	time_label.add_theme_font_override("font", bold_font)
-
+	time_label.add_theme_font_override("font", custom_font)
 	time_label.add_theme_font_size_override("font_size", 56)
 	time_label.add_theme_color_override("font_color", Color.WHITE)
 	time_label.add_theme_constant_override("outline_size", 8)
 	time_label.add_theme_color_override("font_outline_color", Color.BLACK)
-
+	
 	ui_container.add_child(restart_btn)
 	restart_btn.text = "リスタート"
 	restart_btn.position = Vector2(1920 - 200, 20)
+	restart_btn.add_theme_font_override("font", custom_font)
 	restart_btn.add_theme_font_size_override("font_size", 32)
 	restart_btn.pressed.connect(_on_restart_pressed)
 
@@ -282,8 +285,8 @@ func _city_annexed(defeated_city, winner_faction):
 
 
 func _update_ui():
-	var current_year = int(game_time)
-	time_label.text = "BC: %03d" % current_year
+	var year = 1000 + int(game_time)
+	time_label.text = "AD %d" % year
 
 	var text = "【各国の総兵力】\n"
 	for f in factions:
