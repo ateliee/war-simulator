@@ -77,7 +77,11 @@ func _draw():
 		if c.is_capital:
 			display_name = "★" + c.name
 
-		var string_size = custom_font.get_string_size(display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size)
+		var string_size = custom_font.get_string_size(
+			display_name,
+			HORIZONTAL_ALIGNMENT_CENTER,
+			-1,
+			font_size)
 		var text_pos = c.position + Vector2(-string_size.x / 2.0, -10)
 
 		draw_string_outline(

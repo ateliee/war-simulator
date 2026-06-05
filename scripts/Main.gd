@@ -72,7 +72,7 @@ var city_names = [
 func _ready():
 	add_child(ui_container)
 
-	
+
 	ui_container.add_child(faction_list_label)
 	faction_list_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	faction_list_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
