@@ -19,27 +19,28 @@ void fragment() {
 	n *= falloff;
 	
 	if (n < land_threshold) {
-		vec3 deep_sea = vec3(0.05, 0.15, 0.3);
-		vec3 shallow_sea = vec3(0.1, 0.35, 0.65);
-		COLOR = vec4(mix(deep_sea, shallow_sea, n / land_threshold), 1.0);
+		// 海岸線（陸地に接する海の部分）を暗くして陸の輪郭をくっきりさせる
+		if (land_threshold - n < 0.015) {
+			COLOR = vec4(0.02, 0.05, 0.1, 1.0);
+		} else {
+			vec3 deep_sea = vec3(0.05, 0.15, 0.3);
+			vec3 shallow_sea = vec3(0.1, 0.35, 0.65);
+			COLOR = vec4(mix(deep_sea, shallow_sea, n / land_threshold), 1.0);
+		}
 	} else {
 		float min_dist = 99999999.0;
 		int closest_i = 0;
-		
 		float min_dist2 = 99999999.0;
 		
-		// ドメインワーピング1（大きくうねる空間の歪み）
 		vec2 warp = vec2(
 			texture(noise_tex, UV).r - 0.5,
 			texture(noise_tex, vec2(UV.y, 1.0 - UV.x)).r - 0.5
 		);
-		// ドメインワーピング2（反転した座標からのノイズで鋭い凹凸を作る）
 		vec2 warp2 = vec2(
 			texture(noise_tex, vec2(1.0 - UV.x, 1.0 - UV.y)).r - 0.5,
 			texture(noise_tex, vec2(1.0 - UV.y, UV.x)).r - 0.5
 		);
 		
-		// 合成して大きな歪みと鋭い歪みを両立させる
 		vec2 warped_pos = pos + warp * 300.0 + warp2 * 150.0;
 		
 		for (int i = 0; i < num_cities; i++) {
@@ -60,9 +61,9 @@ void fragment() {
 		vec3 color = city_colors[closest_i].rgb;
 		
 		float ratio = min_dist / max(min_dist2, 0.0001);
-		color *= mix(1.0, 0.4, smoothstep(0.97, 1.0, ratio));
 		
-		color *= mix(0.7, 1.0, (n - land_threshold) / (1.0 - land_threshold));
+		// 黒い国境線の描画処理は完全に削除し、色同士のシャープな境界線（エッジ）を活かす
+		color *= mix(0.85, 1.0, (n - land_threshold) / (1.0 - land_threshold));
 		
 		COLOR = vec4(color, 1.0);
 	}

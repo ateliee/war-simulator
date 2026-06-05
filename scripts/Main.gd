@@ -24,18 +24,32 @@ var city_names = ["アイゼン", "ルカ", "バルド", "セルフィ", "アリ
 func _ready():
 	add_child(ui_container)
 	ui_container.add_child(faction_list_label)
-	faction_list_label.position = Vector2(20, 20)
+	faction_list_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	faction_list_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	faction_list_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	faction_list_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	faction_list_label.offset_right = -40
+	faction_list_label.offset_bottom = -40
 	faction_list_label.add_theme_font_size_override("font_size", 32)
 	faction_list_label.add_theme_color_override("font_color", Color.WHITE)
 	faction_list_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	faction_list_label.add_theme_constant_override("outline_size", 6)
+	faction_list_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	
 	ui_container.add_child(time_label)
 	time_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	time_label.offset_top = 20
 	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	time_label.add_theme_font_size_override("font_size", 48)
+	
+	var bold_font = SystemFont.new()
+	bold_font.font_names = PackedStringArray(["Hiragino Sans", "Yu Gothic", "Meiryo", "sans-serif"])
+	bold_font.font_weight = 700 # 太字
+	time_label.add_theme_font_override("font", bold_font)
+	
+	time_label.add_theme_font_size_override("font_size", 56)
 	time_label.add_theme_color_override("font_color", Color.WHITE)
-	time_label.add_theme_color_override("font_shadow_color", Color.BLACK)
+	time_label.add_theme_constant_override("outline_size", 8)
+	time_label.add_theme_color_override("font_outline_color", Color.BLACK)
 	
 	ui_container.add_child(restart_btn)
 	restart_btn.text = "リスタート"
@@ -130,14 +144,12 @@ func _check_win_condition():
 		get_tree().change_scene_to_file("res://scenes/Result.tscn")
 
 func _update_simulation(delta):
-	# 都市の回復
 	for c in cities:
 		var recovery = 200.0 * delta
 		if c.is_capital:
 			recovery = 600.0 * delta 
 		c.power = min(c.power + recovery, c.max_power)
 	
-	# 部隊の生成（数秒おきに出撃）
 	troop_spawn_timer -= delta
 	if troop_spawn_timer <= 0:
 		troop_spawn_timer = 2.0
@@ -147,38 +159,54 @@ func _update_simulation(delta):
 			var c2 = pair[1]
 			
 			if c1.faction != c2.faction:
-				# c1からc2への進軍
 				if c1.power > 5000:
-					var send_power = c1.power * 0.15 # 兵力の15%を出撃
+					var send_power = c1.power * 0.15 
 					c1.power -= send_power
-					active_troops.append(TroopRef.new(c1.faction, c1.position, c2, send_power))
+					active_troops.append(TroopRef.new(c1.faction, c1, c2, send_power))
 				
-				# c2からc1への進軍
 				if c2.power > 5000:
 					var send_power = c2.power * 0.15
 					c2.power -= send_power
-					active_troops.append(TroopRef.new(c2.faction, c2.position, c1, send_power))
+					active_troops.append(TroopRef.new(c2.faction, c2, c1, send_power))
 					
-	# 部隊の移動と戦闘処理
 	var i = active_troops.size() - 1
 	while i >= 0:
 		var t = active_troops[i]
-		var dir = (t.target.position - t.position).normalized()
-		t.position += dir * t.speed * delta
 		
-		# 到達判定
-		if t.position.distance_to(t.target.position) < 10.0:
-			if t.target.faction == t.faction:
-				# 移動中に味方領土になっていた場合は増援として回復
-				t.target.power = min(t.target.power + t.power, t.target.max_power)
-			else:
-				# 敵都市へのダメージ処理
-				t.target.power -= t.power
-				if t.target.power <= 0:
-					# 部隊の所属国が都市を占領する
-					_city_annexed(t.target, t.faction)
+		# 国境線の位置割合を兵力から計算 (Apollonius graphによる近似)
+		var w1 = max(t.origin_city.power, 100.0)
+		var w2 = max(t.target_city.power, 100.0)
+		var border_ratio = w1 / (w1 + w2)
+		var border_pos = t.origin_city.position.lerp(t.target_city.position, border_ratio)
+		
+		var dir = (t.target_city.position - t.origin_city.position).normalized()
+		var dist_to_origin = t.position.distance_to(t.origin_city.position)
+		var dist_to_border = t.origin_city.position.distance_to(border_pos)
+		
+		if dist_to_origin < dist_to_border - 5.0:
+			# 国境まで移動する
+			t.position += dir * t.speed * delta
+			t.is_fighting = false
+		else:
+			# 国境に到達！ここに張り付いて継続ダメージを与える
+			t.position = border_pos
+			t.is_fighting = true
 			
-			active_troops.remove_at(i)
+			if t.target_city.faction == t.faction:
+				# 進行中に味方になっていた場合
+				t.target_city.power = min(t.target_city.power + t.power, t.target_city.max_power)
+				active_troops.remove_at(i)
+			else:
+				# 敵都市を継続的に削る（押し込む）
+				var dps = t.power * 0.8
+				t.target_city.power -= dps * delta
+				t.power -= dps * 0.3 * delta # 自身も損耗
+				
+				if t.target_city.power <= 0:
+					_city_annexed(t.target_city, t.faction)
+					
+				if t.power <= 50.0:
+					active_troops.remove_at(i)
 		i -= 1
 				
 	map_instance.update_city_powers(cities)
@@ -196,13 +224,14 @@ func _city_annexed(defeated_city, winner_faction):
 		defeated_city.name = defeated_city.name.replace("王都", "旧都")
 		defeated_city.max_power = 30000.0
 	
-	defeated_city.power = 5000.0 
+	# 占領直後は兵力をほぼゼロ(100)にし、一気に領土が広がる不自然なフラッシュを防止
+	defeated_city.power = 100.0 
 
 func _update_ui():
-	var current_year = 2024 + int(game_time)
-	time_label.text = "経過年数: %d年" % current_year
+	var current_year = int(game_time)
+	time_label.text = "BC: %03d" % current_year
 
-	var text = "各国の総兵力:\n"
+	var text = "【各国の総兵力】\n"
 	for f in factions:
 		if f.is_alive():
 			text += "%s: %d\n" % [f.name, int(f.get_total_power())]

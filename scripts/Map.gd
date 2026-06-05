@@ -79,32 +79,33 @@ func _draw():
 		draw_string_outline(sys_font, text_pos, display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, 2, Color.BLACK)
 		draw_string(sys_font, text_pos, display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size, Color.WHITE)
 
-	# 部隊（矢印）の描画
+	# 部隊（三角）の描画
 	for t in troops:
-		_draw_arrow(t.position, t.target.position, t.faction.color)
+		# 進行方向を取得
+		var dir = (t.target_city.position - t.origin_city.position).normalized()
+		_draw_triangle(t.position, dir, t.faction.color, t.is_fighting)
 
-func _draw_arrow(pos: Vector2, target: Vector2, color: Color):
-	var dir = (target - pos).normalized()
+func _draw_triangle(pos: Vector2, dir: Vector2, color: Color, is_fighting: bool):
 	if dir.length() < 0.1:
 		return
 		
-	var arrow_len = 20.0
-	var tip = pos + dir * (arrow_len * 0.5)
-	var base = pos - dir * (arrow_len * 0.5)
+	var size = 16.0
 	
-	# 矢印の軸（黒フチと内側）
-	draw_line(base, tip, Color.BLACK, 6.0)
-	draw_line(base, tip, color, 4.0)
+	# 戦闘中（国境張り付き中）は少しだけ前に押し出すように描画
+	var center = pos
+	if is_fighting:
+		center += dir * 6.0 
+		
+	# シンプルな二等辺三角形の計算
+	var tip = center + dir * size
+	var right = center + dir.rotated(PI * 0.8) * size
+	var left = center + dir.rotated(-PI * 0.8) * size
 	
-	# 矢印の頭（三角形）
-	var right = dir.rotated(PI * 0.8) * 12.0
-	var left = dir.rotated(-PI * 0.8) * 12.0
-	
-	var pts = PackedVector2Array([tip + dir * 6.0, tip + right, tip + left])
+	var pts = PackedVector2Array([tip, right, left])
 	draw_polygon(pts, PackedColorArray([color, color, color]))
 	
-	# 矢印の頭のアウトライン
-	var pts_outline = PackedVector2Array([tip + dir * 6.0, tip + right, tip + left, tip + dir * 6.0])
+	# アウトライン
+	var pts_outline = PackedVector2Array([tip, right, left, tip])
 	draw_polyline(pts_outline, Color.BLACK, 2.0)
 
 func get_adjacency_list() -> Array:
