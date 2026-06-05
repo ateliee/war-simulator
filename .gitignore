@@ -1,0 +1,10 @@
+# Godot 4 specific ignores
+.godot/
+!/.godot/extension_list.cfg
+*.translation
+*.gdignore
+*.tmp
+*.bak
+*~
+*.log
+export_presets.cfg
