@@ -4,7 +4,8 @@ const FactionRef = preload("res://scripts/Faction.gd")
 const CityRef = preload("res://scripts/City.gd")
 const TroopRef = preload("res://scripts/Troop.gd")
 
-var map_scene = preload("res://scenes/Map.tscn")
+const MAP_SCENE = preload("res://scenes/Map.tscn")
+
 var map_instance: Node2D
 
 var factions: Array = []
@@ -13,6 +14,13 @@ var active_troops: Array = []
 var noise: FastNoiseLite
 var game_time: float = 0.0
 var troop_spawn_timer: float = 0.0
+var diplomacy_timer: float = 0.0
+var ui_timer: float = 0.0
+
+var faction_list_label = RichTextLabel.new()
+var diplomacy_label = RichTextLabel.new()
+var time_label = Label.new()
+var restart_btn = Button.new()
 
 var city_names = [
 	"アイゼン",
@@ -65,33 +73,40 @@ var city_names = [
 ]
 
 @onready var ui_container = CanvasLayer.new()
-@onready var faction_list_label = Label.new()
-@onready var time_label = Label.new()
-@onready var restart_btn = Button.new()
+
 
 func _ready():
 	add_child(ui_container)
-	var custom_font = preload("res://assets/fonts/NotoSansJP-Bold.otf")
-	ui_container.add_child(faction_list_label)
-	faction_list_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	faction_list_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	faction_list_label.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	faction_list_label.offset_right = -40
-	faction_list_label.offset_bottom = -40
-	faction_list_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	faction_list_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	faction_list_label.add_theme_font_override("font", custom_font)
-	faction_list_label.add_theme_font_size_override("font_size", 32)
-	faction_list_label.add_theme_color_override("font_color", Color.WHITE)
+	const CUSTOM_FONT = preload("res://assets/fonts/NotoSansJP-Bold.otf")
+
+	faction_list_label.bbcode_enabled = true
+	faction_list_label.fit_content = true
+	faction_list_label.scroll_active = false
+	faction_list_label.custom_minimum_size = Vector2(400, 0)
+	faction_list_label.add_theme_font_override("normal_font", CUSTOM_FONT)
+	faction_list_label.add_theme_font_size_override("normal_font_size", 32)
+	faction_list_label.add_theme_color_override("default_color", Color.WHITE)
 	faction_list_label.add_theme_color_override("font_shadow_color", Color.BLACK)
 	faction_list_label.add_theme_constant_override("outline_size", 6)
 	faction_list_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	ui_container.add_child(faction_list_label)
+
+	diplomacy_label.bbcode_enabled = true
+	diplomacy_label.fit_content = true
+	diplomacy_label.scroll_active = false
+	diplomacy_label.custom_minimum_size = Vector2(800, 0)
+	diplomacy_label.add_theme_font_override("normal_font", CUSTOM_FONT)
+	diplomacy_label.add_theme_font_size_override("normal_font_size", 32)
+	diplomacy_label.add_theme_color_override("default_color", Color.WHITE)
+	diplomacy_label.add_theme_constant_override("outline_size", 6)
+	diplomacy_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	ui_container.add_child(diplomacy_label)
 
 	ui_container.add_child(time_label)
 	time_label.position = Vector2(0, 20)
 	time_label.size = Vector2(1920, 100)
 	time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	time_label.add_theme_font_override("font", custom_font)
+	time_label.add_theme_font_override("font", CUSTOM_FONT)
 	time_label.add_theme_font_size_override("font_size", 56)
 	time_label.add_theme_color_override("font_color", Color.WHITE)
 	time_label.add_theme_constant_override("outline_size", 8)
@@ -100,14 +115,14 @@ func _ready():
 	ui_container.add_child(restart_btn)
 	restart_btn.text = "リスタート"
 	restart_btn.position = Vector2(1920 - 200, 20)
-	restart_btn.add_theme_font_override("font", custom_font)
+	restart_btn.add_theme_font_override("font", CUSTOM_FONT)
 	restart_btn.add_theme_font_size_override("font_size", 32)
 	restart_btn.pressed.connect(_on_restart_pressed)
 
 	_init_factions()
 	_init_cities()
 
-	map_instance = map_scene.instantiate()
+	map_instance = MAP_SCENE.instantiate()
 	add_child(map_instance)
 	map_instance.setup(cities, factions, noise)
 
@@ -117,11 +132,11 @@ func _on_restart_pressed():
 
 
 func _init_factions():
-	var red = FactionRef.new("赤の帝国", Color(0.8, 0.2, 0.2))
-	var blue = FactionRef.new("青の共和国", Color(0.2, 0.4, 0.8))
-	var green = FactionRef.new("緑の連邦", Color(0.2, 0.8, 0.3))
-	var yellow = FactionRef.new("黄の連合", Color(0.8, 0.8, 0.2))
-	var purple = FactionRef.new("紫の王国", Color(0.6, 0.2, 0.8))
+	var red = FactionRef.new("赤の帝国", Color(0.8, 0.2, 0.2), "res://assets/flags/red.jpg")
+	var blue = FactionRef.new("青の共和国", Color(0.2, 0.4, 0.8), "res://assets/flags/blue.jpg")
+	var green = FactionRef.new("緑の連邦", Color(0.2, 0.8, 0.3), "res://assets/flags/green.jpg")
+	var yellow = FactionRef.new("黄の連合", Color(0.8, 0.8, 0.2), "res://assets/flags/yellow.jpg")
+	var purple = FactionRef.new("紫の王国", Color(0.6, 0.2, 0.8), "res://assets/flags/purple.jpg")
 
 	factions = [red, blue, green, yellow, purple]
 
@@ -174,11 +189,145 @@ func _init_cities():
 
 func _process(delta):
 	game_time += delta
+	_update_diplomacy(delta)
 	_update_simulation(delta)
-	_update_ui()
+	_update_ui(delta)
 
 	if game_time > 2.0:
 		_check_win_condition()
+
+
+func _update_diplomacy(delta):
+	diplomacy_timer -= delta
+
+	# 戦争中の国同士の継続時間を更新、および滅亡した国のクリーンアップ
+	for f1 in factions:
+		if not f1.is_alive():
+			continue
+
+		var war_count = f1.wars.size()
+
+		# 滅亡した国をリストから削除
+		var keys_to_remove = []
+		for f2 in f1.wars.keys():
+			if not f2.is_alive():
+				keys_to_remove.append(f2)
+			else:
+				f1.wars[f2] += delta
+
+				# 戦争期間と対象国数に応じて「疲労度」が上昇する（多正面作戦ほど早く疲弊する）
+				var exhaustion = f1.wars[f2] * (1.0 + (war_count - 1) * 0.5)
+				if exhaustion > 15.0 and randf() < (0.01 * exhaustion) * delta:
+					_make_peace(f1, f2)
+
+		for k in keys_to_remove:
+			f1.wars.erase(k)
+
+		var i = f1.alliances.size() - 1
+		while i >= 0:
+			if not f1.alliances[i].is_alive():
+				f1.alliances.remove_at(i)
+			i -= 1
+
+	if diplomacy_timer > 0:
+		return
+	diplomacy_timer = 1.0  # 1秒ごとに外交判定
+
+	# 国境を接している国同士の関係性を悪化・改善させる
+	var adjacency = map_instance.get_adjacency_list()
+	var border_factions = {}
+	for pair in adjacency:
+		var f1 = pair[0].faction
+		var f2 = pair[1].faction
+		if f1 != f2:
+			if not border_factions.has(f1):
+				border_factions[f1] = {}
+			if not border_factions.has(f2):
+				border_factions[f2] = {}
+			border_factions[f1][f2] = true
+			border_factions[f2][f1] = true
+
+	var alive_factions = factions.filter(func(f): return f.is_alive())
+	for i in range(alive_factions.size()):
+		var f1 = alive_factions[i]
+		for j in range(i + 1, alive_factions.size()):
+			var f2 = alive_factions[j]
+
+			if not f1.relations.has(f2):
+				f1.relations[f2] = 0.0
+				f2.relations[f1] = 0.0
+
+			# 国境を接していると摩擦が起きやすい（特に関係がマイナスの場合、さらに悪化）
+			var is_border = border_factions.has(f1) and border_factions[f1].has(f2)
+
+			if f1.wars.has(f2):
+				# 戦争中は関係が常に最低
+				f1.relations[f2] = -100.0
+				f2.relations[f1] = -100.0
+			elif f1.alliances.has(f2):
+				# 同盟中は関係が良好
+				f1.relations[f2] = min(100.0, f1.relations[f2] + 2.0)
+				f2.relations[f1] = min(100.0, f2.relations[f1] + 2.0)
+				# 関係が悪化したら同盟破棄の可能性
+				if randf() < 0.05 and f1.relations[f2] < 50.0:
+					_break_alliance(f1, f2)
+			else:
+				# 中立状態
+				var change = randf_range(-5.0, 5.0)
+				if is_border:
+					change -= 2.0  # 国境を接していると悪化しやすい
+
+				f1.relations[f2] = clamp(f1.relations[f2] + change, -100.0, 100.0)
+				f2.relations[f1] = clamp(f2.relations[f1] + change, -100.0, 100.0)
+
+				# 関係が-50以下で、宣戦布告
+				if f1.relations[f2] < -50.0:
+					if randf() < 0.2:
+						_declare_war(f1, f2)
+				# 関係が80以上なら同盟
+				elif f1.relations[f2] > 80.0:
+					if randf() < 0.2:
+						_make_alliance(f1, f2)
+
+
+func _declare_war(f1, f2):
+	if not f1.wars.has(f2):
+		f1.wars[f2] = 0.0
+		f2.wars[f1] = 0.0
+		_break_alliance(f1, f2)
+
+
+func _make_peace(f1, f2):
+	if f1.wars.has(f2):
+		f1.wars.erase(f2)
+		f2.wars.erase(f1)
+		# 停戦後は関係が少しリセットされる
+		f1.relations[f2] = -20.0
+		f2.relations[f1] = -20.0
+
+		# 戦争が終わったので、進行中の部隊を消滅させる
+		var i = active_troops.size() - 1
+		while i >= 0:
+			var t = active_troops[i]
+			if (
+				(t.faction == f1 and t.target_city.faction == f2)
+				or (t.faction == f2 and t.target_city.faction == f1)
+			):
+				active_troops.remove_at(i)
+			i -= 1
+
+
+func _make_alliance(f1, f2):
+	if not f1.alliances.has(f2):
+		f1.alliances.append(f2)
+		f2.alliances.append(f1)
+		_make_peace(f1, f2)
+
+
+func _break_alliance(f1, f2):
+	if f1.alliances.has(f2):
+		f1.alliances.erase(f2)
+		f2.alliances.erase(f1)
 
 
 func _check_win_condition():
@@ -198,9 +347,15 @@ func _check_win_condition():
 
 func _update_simulation(delta):
 	for c in cities:
-		var recovery = 200.0 * delta
+		# 最低限の増加量（移住者や治安維持などによる基礎増加）
+		var base_growth = 50.0 * delta
+		# 死亡率を加味した自然増減（複利）
+		var growth = c.power * (c.faction.birth_rate - c.faction.death_rate) * delta
+		var recovery = base_growth + growth
+
 		if c.is_capital:
-			recovery = 600.0 * delta
+			recovery += 200.0 * delta  # 首都ボーナス
+
 		c.power = min(c.power + recovery, c.max_power)
 
 	troop_spawn_timer -= delta
@@ -212,15 +367,18 @@ func _update_simulation(delta):
 			var c2 = pair[1]
 
 			if c1.faction != c2.faction:
-				if c1.power > 5000:
-					var send_power = c1.power * 0.15
-					c1.power -= send_power
-					active_troops.append(TroopRef.new(c1.faction, c1, c2, send_power))
+				# 戦争状態の国に対してのみ出撃する
+				if c1.faction.wars.has(c2.faction):
+					if c1.power > 5000:
+						var send_power = c1.power * 0.15
+						c1.power -= send_power
+						active_troops.append(TroopRef.new(c1.faction, c1, c2, send_power))
 
-				if c2.power > 5000:
-					var send_power = c2.power * 0.15
-					c2.power -= send_power
-					active_troops.append(TroopRef.new(c2.faction, c2, c1, send_power))
+				if c2.faction.wars.has(c1.faction):
+					if c2.power > 5000:
+						var send_power = c2.power * 0.15
+						c2.power -= send_power
+						active_troops.append(TroopRef.new(c2.faction, c2, c1, send_power))
 
 	var i = active_troops.size() - 1
 	while i >= 0:
@@ -255,10 +413,20 @@ func _update_simulation(delta):
 				t.target_city.power -= dps * delta
 				t.power -= dps * 0.3 * delta  # 自身も損耗
 
-				if t.target_city.power <= 0:
-					_city_annexed(t.target_city, t.faction)
+				# 降伏判定：都市の兵力が最大値の15%以下 かつ 攻撃側が守備側の半数以上いる場合、または兵力が0になった場合
+				var surrender_threshold = t.target_city.max_power * 0.15
+				var is_surrender = (
+					t.target_city.power <= surrender_threshold
+					and t.power >= t.target_city.power * 0.5
+				)
+				var is_annihilated = t.target_city.power <= 0
 
-				if t.power <= 50.0:
+				if is_surrender or is_annihilated:
+					_city_annexed(t.target_city, t.faction)
+					# 降伏・陥落後、残存する市民（兵力）に加えて、占領した部隊がそのまま駐留軍として合流する
+					t.target_city.power = max(t.target_city.power, 100.0) + t.power
+					active_troops.remove_at(i)
+				elif t.power <= 50.0:
 					active_troops.remove_at(i)
 		i -= 1
 
@@ -278,18 +446,67 @@ func _city_annexed(defeated_city, winner_faction):
 		defeated_city.name = defeated_city.name.replace("王都", "旧都")
 		defeated_city.max_power = 30000.0
 
-	# 占領直後は兵力をほぼゼロ(100)にし、一気に領土が広がる不自然なフラッシュを防止
-	defeated_city.power = 100.0
+
+func _format_number(n: int) -> String:
+	var s = str(n)
+	var res = ""
+	var count = 0
+	for i in range(s.length() - 1, -1, -1):
+		res = s[i] + res
+		count += 1
+		if count == 3 and i > 0:
+			res = "," + res
+			count = 0
+	return res
 
 
-func _update_ui():
+func _update_ui(delta):
 	var year = 1000 + int(game_time)
 	time_label.text = "AD %d" % year
 
-	var text = "【各国の総兵力】\n"
+	ui_timer -= delta
+	if ui_timer > 0:
+		return
+	ui_timer = 1.0  # 1年(1秒)ごとに更新
+
+	var text = "[right]【各国の兵力】\n"
+	var dip_text = "【外交状態】\n"
 	for f in factions:
+		var icon_tag = ""
+		if f.icon_path != "":
+			icon_tag = "[img=40x40]%s[/img] " % f.icon_path
+
 		if f.is_alive():
-			text += "%s: %d\n" % [f.name, int(f.get_total_power())]
+			var power_str = _format_number(int(f.get_total_power()))
+			text += "%s%s: %s\n" % [icon_tag, f.name, power_str]
+
+			var war_names = []
+			for e in f.wars.keys():
+				war_names.append(e.name.replace("の", ""))  # 表示をスッキリさせるため「の」を省略
+			var ally_names = []
+			for a in f.alliances:
+				ally_names.append(a.name.replace("の", ""))
+
+			if war_names.size() > 0 or ally_names.size() > 0:
+				dip_text += icon_tag + f.name.replace("の", "") + ": "
+				var parts = []
+				if war_names.size() > 0:
+					parts.append("⚔️ " + ", ".join(war_names))
+				if ally_names.size() > 0:
+					parts.append("🤝 " + ", ".join(ally_names))
+				dip_text += " ".join(parts) + "\n"
 		else:
-			text += "%s: 滅亡\n" % f.name
+			text += "%s%s: 滅亡\n" % [icon_tag, f.name]
+	text += "[/right]"
 	faction_list_label.text = text
+	diplomacy_label.text = dip_text
+
+	# リッチテキストのサイズを動的に縮小させ、下揃え（アンカー底辺）を維持する
+	faction_list_label.reset_size()
+	diplomacy_label.reset_size()
+
+	# アンカーに頼らず、直接座標で画面の右下・左下に配置する
+	faction_list_label.position = Vector2(
+		1920 - faction_list_label.size.x - 40, 1080 - faction_list_label.size.y - 40
+	)
+	diplomacy_label.position = Vector2(40, 1080 - diplomacy_label.size.y - 40)

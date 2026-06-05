@@ -63,25 +63,69 @@ func _process(_delta):
 
 
 func _draw():
+	# 外交関係の描画（首都間をラインで結ぶ）
+	var drawn_pairs = {}
+	for f1 in factions:
+		if f1.cities.size() == 0:
+			continue
+		var cap1 = null
+		for c in f1.cities:
+			if c.is_capital:
+				cap1 = c
+				break
+		if cap1 == null:
+			continue
+
+		# 戦争のライン（赤の破線）
+		for f2 in f1.wars.keys():
+			var pair_key = [f1.name, f2.name]
+			pair_key.sort()
+			if drawn_pairs.has(str(pair_key)):
+				continue
+			drawn_pairs[str(pair_key)] = true
+
+			var cap2 = null
+			for c in f2.cities:
+				if c.is_capital:
+					cap2 = c
+					break
+			if cap2 != null:
+				draw_dashed_line(cap1.position, cap2.position, Color(1.0, 0.2, 0.2, 0.7), 4.0, 12.0)
+
+		# 同盟のライン（青の実線）
+		for f2 in f1.alliances:
+			var pair_key = [f1.name, f2.name]
+			pair_key.sort()
+			if drawn_pairs.has(str(pair_key)):
+				continue
+			drawn_pairs[str(pair_key)] = true
+
+			var cap2 = null
+			for c in f2.cities:
+				if c.is_capital:
+					cap2 = c
+					break
+			if cap2 != null:
+				draw_line(cap1.position, cap2.position, Color(0.2, 0.6, 1.0, 0.7), 4.0)
+
 	var font_size = 14
 	for c in cities:
 		draw_circle(c.position, 6.0, Color.BLACK)
+		draw_circle(c.position, 4.0, c.faction.color)
 
-		if c.is_capital:
-			draw_circle(c.position, 5.0, Color.YELLOW)
-			draw_circle(c.position, 3.0, c.faction.color)
-		else:
-			draw_circle(c.position, 4.0, c.faction.color)
+		# 王都に国旗を描画
+		if c.is_capital and c.faction.icon != null:
+			var icon_size = Vector2(32, 32)
+			var rect = Rect2(c.position - Vector2(16, 40), icon_size)
+			draw_texture_rect(c.faction.icon, rect, false)
 
 		var display_name = c.name
 		if c.is_capital:
 			display_name = "★" + c.name
 
 		var string_size = custom_font.get_string_size(
-			display_name,
-			HORIZONTAL_ALIGNMENT_CENTER,
-			-1,
-			font_size)
+			display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size
+		)
 		var text_pos = c.position + Vector2(-string_size.x / 2.0, -10)
 
 		draw_string_outline(
