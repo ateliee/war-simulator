@@ -108,15 +108,23 @@ func _draw():
 			if cap2 != null:
 				draw_line(cap1.position, cap2.position, Color(0.2, 0.6, 1.0, 0.7), 4.0)
 
-	var font_size = 14
 	for c in cities:
-		draw_circle(c.position, 6.0, Color.BLACK)
-		draw_circle(c.position, 4.0, c.faction.color)
+		var current_font_size = 14
+		var text_color = Color.WHITE
+
+		if c.is_capital:
+			current_font_size = 20
+			text_color = Color.YELLOW
+			draw_circle(c.position, 10.0, Color.BLACK)
+			draw_circle(c.position, 7.0, c.faction.color)
+		else:
+			draw_circle(c.position, 6.0, Color.BLACK)
+			draw_circle(c.position, 4.0, c.faction.color)
 
 		# 王都に国旗を描画
 		if c.is_capital and c.faction.icon != null:
 			var icon_size = Vector2(32, 32)
-			var rect = Rect2(c.position - Vector2(16, 40), icon_size)
+			var rect = Rect2(c.position - Vector2(16, 65), icon_size)
 			draw_texture_rect(c.faction.icon, rect, false)
 
 		var display_name = c.name
@@ -124,9 +132,9 @@ func _draw():
 			display_name = "★" + c.name
 
 		var string_size = custom_font.get_string_size(
-			display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, font_size
+			display_name, HORIZONTAL_ALIGNMENT_CENTER, -1, current_font_size
 		)
-		var text_pos = c.position + Vector2(-string_size.x / 2.0, -10)
+		var text_pos = c.position + Vector2(-string_size.x / 2.0, -12)
 
 		draw_string_outline(
 			custom_font,
@@ -134,8 +142,8 @@ func _draw():
 			display_name,
 			HORIZONTAL_ALIGNMENT_CENTER,
 			-1,
-			font_size,
-			2,
+			current_font_size,
+			3,
 			Color.BLACK
 		)
 		draw_string(
@@ -144,8 +152,8 @@ func _draw():
 			display_name,
 			HORIZONTAL_ALIGNMENT_CENTER,
 			-1,
-			font_size,
-			Color.WHITE
+			current_font_size,
+			text_color
 		)
 
 	# 部隊（三角）の描画

@@ -38,38 +38,56 @@ var city_names = [
 	"ノア",
 	"シオン",
 	"レナ",
-	"マリス",
-	"ロイド",
-	"クロウ",
+	"ティオ",
 	"レイ",
-	"ユウ",
+	"サヤ",
+	"エラン",
+	"ユナ",
+	"ファリス",
+	"セリス",
+	"リオン",
 	"カイ",
-	"ルイン",
-	"アーク",
+	"アッシュ",
+	"エドガー",
+	"マッシュ",
 	"セシル",
-	"ディン",
+	"ローザ",
+	"リディア",
+	"バッツ",
+	"ファリス",
+	"ガラフ",
+	"クルル",
+	"ティナ",
+	"ロック",
+	"セティ",
+	"クラウド",
+	"ティファ",
+	"エアリス",
+	"スコール",
+	"リノア",
+	"ジタン",
+	"ガーネット",
+	"ビビ",
+	"ティーダ",
+	"ユウナ",
+	"アーロン",
+	"ヴァン",
+	"アーシェ",
+	"ライトニング",
+	"ホープ",
+	"ノクティス",
+	"プロンプト",
+	"イグニス",
+	"クライヴ",
+	"ジル",
+	"ジョシュア",
+	"ディオン",
+	"シド",
 	"エド",
 	"フレア",
 	"ガイ",
 	"ヒロ",
-	"イオ",
-	"ジン",
-	"ケン",
-	"ラン",
-	"ミカ",
-	"ナツ",
-	"オト",
-	"ピア",
-	"クイン",
-	"リタ",
-	"サヤ",
-	"タマ",
-	"ウミ",
-	"ヴィオ",
-	"ワカ",
-	"シト",
-	"ヨミ",
-	"ザラ"
+	"イオ"
 ]
 
 @onready var ui_container = CanvasLayer.new()
@@ -479,6 +497,10 @@ func _update_ui(delta):
 		if f.is_alive():
 			var power_str = _format_number(int(f.get_total_power()))
 			text += "%s%s: %s\n" % [icon_tag, f.name, power_str]
+			var city_list = []
+			for c in f.cities:
+				city_list.append(c.name.replace("旧都", "").replace("王都", ""))
+			text += "[font_size=18]  領土: %s[/font_size]\n" % ", ".join(city_list)
 
 			var war_names = []
 			for e in f.wars.keys():
@@ -491,9 +513,9 @@ func _update_ui(delta):
 				dip_text += icon_tag + f.name.replace("の", "") + ": "
 				var parts = []
 				if war_names.size() > 0:
-					parts.append("⚔️ " + ", ".join(war_names))
+					parts.append("[戦] " + ", ".join(war_names))
 				if ally_names.size() > 0:
-					parts.append("🤝 " + ", ".join(ally_names))
+					parts.append("[同] " + ", ".join(ally_names))
 				dip_text += " ".join(parts) + "\n"
 		else:
 			text += "%s%s: 滅亡\n" % [icon_tag, f.name]
