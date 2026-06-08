@@ -24,7 +24,7 @@ jobs:
       image: barichello/godot-ci:4.6.1
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           lfs: true
           
@@ -44,7 +44,7 @@ jobs:
           sed -i 's#<head>#<head><script src="coi-serviceworker.js"></script>#g' output/web/index.html
           
       - name: Upload Artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: output/web
 
@@ -57,7 +57,7 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
   create-release:
     name: Create GitHub Release
@@ -65,16 +65,16 @@ jobs:
     needs: deploy-page
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         
       - name: Generate Tag
         id: tag
         run: |
           # JST(日本時間)での日付をベースにしたタグ名を作成（例: v2026.06.08-abc1234）
-          TZ="Asia/Tokyo" echo "tag_name=v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          TZ="Asia/Tokyo" echo "tag_name=v$(date +'%Y.%m.%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           tag_name: ${{ steps.tag.outputs.tag_name }}
           name: "Release ${{ steps.tag.outputs.tag_name }}"
