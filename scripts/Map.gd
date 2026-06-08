@@ -23,6 +23,7 @@ func setup(_cities: Array, _factions: Array, _noise: FastNoiseLite):
 	noise_tex.width = 1920
 	noise_tex.height = 1080
 	noise_tex.seamless = false
+	noise_tex.normalize = false
 
 	var mat = ShaderMaterial.new()
 	mat.shader = preload("res://shaders/voronoi.gdshader")
@@ -44,13 +45,18 @@ func setup(_cities: Array, _factions: Array, _noise: FastNoiseLite):
 func update_city_powers(current_cities: Array):
 	if background.material == null:
 		return
-	var powers_array = PackedFloat32Array()
+	var pos_array = PackedVector2Array()
 	var color_array = PackedColorArray()
 	for c in current_cities:
-		powers_array.append(max(c.power, 1.0))
-		color_array.append(c.faction.color)
+		pos_array.append(c.position)
+		color_array.append(c.display_color)
 
-	background.material.set_shader_parameter("city_powers", powers_array)
+	for t in troops:
+		pos_array.append(t.position)
+		color_array.append(t.faction.color)
+
+	background.material.set_shader_parameter("num_cities", pos_array.size())
+	background.material.set_shader_parameter("city_positions", pos_array)
 	background.material.set_shader_parameter("city_colors", color_array)
 
 
@@ -58,7 +64,16 @@ func update_active_troops(_troops: Array):
 	troops = _troops
 
 
-func _process(_delta):
+func _process(delta):
+	var color_changed = false
+	for c in cities:
+		if c.display_color != c.faction.color:
+			c.display_color = c.display_color.lerp(c.faction.color, delta * 1.5)
+			color_changed = true
+
+	if color_changed or troops.size() > 0:
+		update_city_powers(cities)
+
 	queue_redraw()
 
 
@@ -207,6 +222,25 @@ func get_adjacency_list() -> Array:
 	return adjacency
 
 
+func _smoothstep(edge0: float, edge1: float, x: float) -> float:
+	var t = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+
+
+func _is_sea_route(c1, c2) -> bool:
+	var steps = 8
+	for i in range(1, steps):
+		var p = c1.position.lerp(c2.position, float(i) / steps)
+		var uv = p / Vector2(1920.0, 1080.0)
+		var dist_uv = uv.distance_to(Vector2(0.5, 0.5))
+		var falloff = 1.0 - _smoothstep(0.35, 0.5, dist_uv)
+		var noise_val = (noise_tex.noise.get_noise_2dv(p) + 1.0) / 2.0
+		noise_val *= falloff
+		if noise_val < 0.4:  # land_threshold
+			return true
+	return false
+
+
 func _add_edge_if_gabriel(adj_list: Array, c1, c2):
 	var mid = (c1.position + c2.position) / 2.0
 	var radius_sq = c1.position.distance_squared_to(mid)
@@ -222,7 +256,8 @@ func _add_edge_if_gabriel(adj_list: Array, c1, c2):
 	if not is_valid:
 		return
 
-	var pair1 = [c1, c2]
+	var is_sea = _is_sea_route(c1, c2)
+	var pair1 = [c1, c2, is_sea]
 	var found = false
 	for p in adj_list:
 		if (p[0] == c1 and p[1] == c2) or (p[0] == c2 and p[1] == c1):

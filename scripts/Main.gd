@@ -21,6 +21,10 @@ var faction_list_label = RichTextLabel.new()
 var diplomacy_label = RichTextLabel.new()
 var time_label = Label.new()
 var restart_btn = Button.new()
+var speed_btn = Button.new()
+var speeds = [1.0, 2.0, 3.0, 5.0]
+var speed_labels = ["▶", "▶▶", "▶▶▶", "▶▶▶▶▶"]
+var current_speed_idx = 0
 
 var city_names = [
 	"アイゼン",
@@ -100,6 +104,7 @@ func _ready():
 	faction_list_label.bbcode_enabled = true
 	faction_list_label.fit_content = true
 	faction_list_label.scroll_active = false
+	faction_list_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	faction_list_label.custom_minimum_size = Vector2(400, 0)
 	faction_list_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 	faction_list_label.add_theme_font_size_override("normal_font_size", 32)
@@ -112,6 +117,7 @@ func _ready():
 	diplomacy_label.bbcode_enabled = true
 	diplomacy_label.fit_content = true
 	diplomacy_label.scroll_active = false
+	diplomacy_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	diplomacy_label.custom_minimum_size = Vector2(800, 0)
 	diplomacy_label.add_theme_font_override("normal_font", CUSTOM_FONT)
 	diplomacy_label.add_theme_font_size_override("normal_font_size", 32)
@@ -132,10 +138,19 @@ func _ready():
 
 	ui_container.add_child(restart_btn)
 	restart_btn.text = "リスタート"
-	restart_btn.position = Vector2(1920 - 200, 20)
+	restart_btn.position = Vector2(1920 - 240, 20)
+	restart_btn.size = Vector2(200, 60)
 	restart_btn.add_theme_font_override("font", CUSTOM_FONT)
 	restart_btn.add_theme_font_size_override("font_size", 32)
 	restart_btn.pressed.connect(_on_restart_pressed)
+
+	ui_container.add_child(speed_btn)
+	speed_btn.text = "▶ (1x)"
+	speed_btn.position = Vector2(40, 20)
+	speed_btn.size = Vector2(240, 60)
+	speed_btn.add_theme_font_override("font", CUSTOM_FONT)
+	speed_btn.add_theme_font_size_override("font_size", 32)
+	speed_btn.pressed.connect(_on_speed_btn_pressed)
 
 	_init_factions()
 	_init_cities()
@@ -146,7 +161,15 @@ func _ready():
 
 
 func _on_restart_pressed():
+	Engine.time_scale = 1.0
 	get_tree().change_scene_to_file("res://scenes/Title.tscn")
+
+
+func _on_speed_btn_pressed():
+	current_speed_idx = (current_speed_idx + 1) % speeds.size()
+	var spd = speeds[current_speed_idx]
+	speed_btn.text = "%s (%dx)" % [speed_labels[current_speed_idx], int(spd)]
+	Engine.time_scale = spd
 
 
 func _init_factions():
@@ -190,8 +213,23 @@ func _init_cities():
 				city_names.remove_at(idx)
 
 			var city = CityRef.new(city_name, pos)
-			var fac = factions[randi() % factions.size()]
+
+			var fac = null
+			if spawned < factions.size():
+				# 最初の5都市は必ず各勢力の首都として1つずつ割り当て
+				fac = factions[spawned]
+			else:
+				var min_dist = 999999.0
+				for f in factions:
+					if f.cities.size() > 0:
+						var cap = f.cities[0]
+						var d = pos.distance_to(cap.position)
+						if d < min_dist:
+							min_dist = d
+							fac = f
+
 			city.faction = fac
+			city.display_color = fac.color
 			fac.cities.append(city)
 			cities.append(city)
 			spawned += 1
@@ -383,6 +421,7 @@ func _update_simulation(delta):
 		for pair in adjacency:
 			var c1 = pair[0]
 			var c2 = pair[1]
+			var is_sea = pair[2]
 
 			if c1.faction != c2.faction:
 				# 戦争状態の国に対してのみ出撃する
@@ -390,13 +429,13 @@ func _update_simulation(delta):
 					if c1.power > 5000:
 						var send_power = c1.power * 0.15
 						c1.power -= send_power
-						active_troops.append(TroopRef.new(c1.faction, c1, c2, send_power))
+						active_troops.append(TroopRef.new(c1.faction, c1, c2, send_power, is_sea))
 
 				if c2.faction.wars.has(c1.faction):
 					if c2.power > 5000:
 						var send_power = c2.power * 0.15
 						c2.power -= send_power
-						active_troops.append(TroopRef.new(c2.faction, c2, c1, send_power))
+						active_troops.append(TroopRef.new(c2.faction, c2, c1, send_power, is_sea))
 
 	var i = active_troops.size() - 1
 	while i >= 0:
@@ -412,9 +451,14 @@ func _update_simulation(delta):
 		var dist_to_origin = t.position.distance_to(t.origin_city.position)
 		var dist_to_border = t.origin_city.position.distance_to(border_pos)
 
+		var current_speed = t.speed
+		if t.is_sea_route:
+			current_speed *= 0.33  # 海路は移動速度が1/3
+			t.power -= t.power * 0.05 * delta  # 上陸準備や嵐による損耗ペナルティ (5%/sec)
+
 		if dist_to_origin < dist_to_border - 5.0:
 			# 国境まで移動する
-			t.position += dir * t.speed * delta
+			t.position += dir * current_speed * delta
 			t.is_fighting = false
 		else:
 			# 国境に到達！ここに張り付いて継続ダメージを与える
@@ -428,6 +472,9 @@ func _update_simulation(delta):
 			else:
 				# 敵都市を継続的に削る（押し込む）
 				var dps = t.power * 0.8
+				if t.is_sea_route:
+					dps *= 0.5  # 海からの上陸戦はダメージ半減ペナルティ
+
 				t.target_city.power -= dps * delta
 				t.power -= dps * 0.3 * delta  # 自身も損耗
 
@@ -499,7 +546,14 @@ func _update_ui(delta):
 			text += "%s%s: %s\n" % [icon_tag, f.name, power_str]
 			var city_list = []
 			for c in f.cities:
-				city_list.append(c.name.replace("旧都", "").replace("王都", ""))
+				var c_name = c.name.replace("旧都", "").replace("王都", "")
+				# 都市名を単語単位で扱わせるため、文字間にWord Joiner(\u2060)を挿入する
+				var no_break_name = ""
+				for char_idx in range(c_name.length()):
+					no_break_name += c_name[char_idx]
+					if char_idx < c_name.length() - 1:
+						no_break_name += "\u2060"
+				city_list.append(no_break_name)
 			text += "[font_size=18]  領土: %s[/font_size]\n" % ", ".join(city_list)
 
 			var war_names = []
