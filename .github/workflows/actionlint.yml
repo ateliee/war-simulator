@@ -1,0 +1,29 @@
+name: "Actionlint"
+
+on:
+  push:
+    paths:
+      - '.github/workflows/*.yml'
+      - '.github/workflows/*.yaml'
+  pull_request:
+    paths:
+      - '.github/workflows/*.yml'
+      - '.github/workflows/*.yaml'
+
+jobs:
+  lint-workflows:
+    name: Run actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Check workflow files with actionlint
+        uses: reviewdog/action-actionlint@v1
+        with:
+          # PR上にコメントとして警告を出すために必要
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # エラーがあればジョブを失敗させる
+          fail_on_error: true
+          # プルリク時にはインラインで指摘する
+          reporter: github-pr-check
